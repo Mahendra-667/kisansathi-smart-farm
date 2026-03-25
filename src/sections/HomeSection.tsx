@@ -147,9 +147,9 @@ const HomeSection = () => {
                     : "bg-secondary text-secondary-foreground rounded-bl-md"
                 }`}
               >
-                <ReactMarkdown className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:m-0 [&>ol]:m-0">
-                  {msg.content}
-                </ReactMarkdown>
+                <div className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:m-0 [&>ol]:m-0">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
               </div>
               {msg.role === "user" && (
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
