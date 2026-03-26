@@ -102,25 +102,13 @@ const HomeSection = () => {
     setIsLoading(true);
     await saveMessage("user", text);
 
-    let assistantText = "";
-    const upsert = (chunk: string) => {
-      assistantText += chunk;
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "assistant" && last === prev[prev.length - 1] && assistantText.startsWith(chunk.length > 0 ? "" : "")) {
-          return prev.map((m, i) => i === prev.length - 1 && m.role === "assistant" && i > 0 ? { ...m, content: assistantText } : m);
-        }
-        return [...prev, { role: "assistant", content: assistantText }];
-      });
-    };
-
     try {
-      await streamChat({
+      await sendChatMessage({
         messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        onDelta: (chunk) => upsert(chunk),
-        onDone: async () => {
+        onResponse: async (response) => {
+          setMessages(prev => [...prev, { role: "assistant", content: response }]);
           setIsLoading(false);
-          if (assistantText) await saveMessage("assistant", assistantText);
+          await saveMessage("assistant", response);
         },
         onError: (err) => { toast.error(err); setIsLoading(false); },
       });
