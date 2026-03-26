@@ -2,12 +2,12 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Mail, Lock, User, Sprout } from "lucide-react";
+import { Loader2, Phone, Lock, User, Sprout } from "lucide-react";
 import { motion } from "framer-motion";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,10 +16,14 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!phone.replace(/\D/g, "").match(/^\d{10,13}$/)) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
     setLoading(true);
 
     if (isLogin) {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(phone, password);
       if (error) {
         toast.error(error.message);
       } else {
@@ -31,11 +35,12 @@ const Auth = () => {
         setLoading(false);
         return;
       }
-      const { error } = await signUp(email, password, fullName);
+      const { error } = await signUp(phone, password, fullName);
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Check your email to verify your account!");
+        toast.success("Account created successfully!");
+        navigate("/");
       }
     }
     setLoading(false);
@@ -72,12 +77,12 @@ const Auth = () => {
             </div>
           )}
           <div className="relative">
-            <Mail className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+            <Phone className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
             <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="tel"
+              placeholder="Phone Number (10 digits)"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               required
               className="input-farm pl-10"
             />

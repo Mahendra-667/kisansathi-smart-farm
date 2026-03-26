@@ -6,8 +6,8 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (phone: string, password: string, fullName: string) => Promise<{ error: any }>;
+  signIn: (phone: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
 
@@ -34,17 +34,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string) => {
+  const formatPhone = (phone: string) => {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.startsWith("91") && digits.length >= 12) return `+${digits}`;
+    if (digits.length === 10) return `+91${digits}`;
+    return `+${digits}`;
+  };
+
+  const signUp = async (phone: string, password: string, fullName: string) => {
+    const formattedPhone = formatPhone(phone);
+    // Use email-like format with phone for password-based auth
+    const fakeEmail = `${formattedPhone.replace("+", "")}@phone.kisanai.app`;
     const { error } = await supabase.auth.signUp({
-      email,
+      email: fakeEmail,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: { full_name: fullName, phone: formattedPhone } },
     });
     return { error };
   };
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const signIn = async (phone: string, password: string) => {
+    const formattedPhone = formatPhone(phone);
+    const fakeEmail = `${formattedPhone.replace("+", "")}@phone.kisanai.app`;
+    const { error } = await supabase.auth.signInWithPassword({ email: fakeEmail, password });
     return { error };
   };
 
