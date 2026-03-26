@@ -83,6 +83,141 @@ export type Database = {
         }
         Relationships: []
       }
+      farm_jobs: {
+        Row: {
+          created_at: string
+          id: string
+          location: string
+          user_id: string
+          wage_per_day: number
+          work_date: string
+          work_type: string
+          workers_needed: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location: string
+          user_id: string
+          wage_per_day: number
+          work_date: string
+          work_type: string
+          workers_needed: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location?: string
+          user_id?: string
+          wage_per_day?: number
+          work_date?: string
+          work_type?: string
+          workers_needed?: number
+        }
+        Relationships: []
+      }
+      land_listings: {
+        Row: {
+          acres: number
+          contact: string
+          created_at: string
+          crop_type: string
+          id: string
+          location: string
+          rent_amount: number
+          user_id: string
+        }
+        Insert: {
+          acres: number
+          contact: string
+          created_at?: string
+          crop_type: string
+          id?: string
+          location: string
+          rent_amount: number
+          user_id: string
+        }
+        Update: {
+          acres?: number
+          contact?: string
+          created_at?: string
+          crop_type?: string
+          id?: string
+          location?: string
+          rent_amount?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      machine_listings: {
+        Row: {
+          available_dates: string
+          contact: string
+          created_at: string
+          id: string
+          location: string
+          machine_type: string
+          price_per_day: number
+          user_id: string
+        }
+        Insert: {
+          available_dates: string
+          contact: string
+          created_at?: string
+          id?: string
+          location: string
+          machine_type: string
+          price_per_day: number
+          user_id: string
+        }
+        Update: {
+          available_dates?: string
+          contact?: string
+          created_at?: string
+          id?: string
+          location?: string
+          machine_type?: string
+          price_per_day?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      organic_listings: {
+        Row: {
+          contact: string
+          created_at: string
+          id: string
+          image_url: string | null
+          location: string
+          price: number
+          product_name: string
+          quantity: string
+          user_id: string
+        }
+        Insert: {
+          contact: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          location: string
+          price: number
+          product_name: string
+          quantity: string
+          user_id: string
+        }
+        Update: {
+          contact?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          location?: string
+          price?: number
+          product_name?: string
+          quantity?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
