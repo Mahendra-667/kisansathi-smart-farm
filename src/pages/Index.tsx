@@ -9,20 +9,11 @@ import MachinesSection from "@/sections/MachinesSection";
 import FarmWorkSection from "@/sections/FarmWorkSection";
 import SoilHealthSection from "@/sections/SoilHealthSection";
 import OrganicMarketSection from "@/sections/OrganicMarketSection";
-
-const sectionTitles: Record<string, string> = {
-  home: "🏠 AI Farming Assistant",
-  disease: "🔬 Disease Check",
-  market: "📈 Market Prices",
-  land: "🌾 Land Connect",
-  machines: "🚜 Farm Machines",
-  work: "👷 Farm Work",
-  soil: "🧪 Soil Health",
-  organic: "🌿 Organic Market",
-};
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Index = () => {
   const [active, setActive] = useState("home");
+  const { t } = useLanguage();
 
   const renderSection = () => {
     switch (active) {
@@ -42,7 +33,7 @@ const Index = () => {
     <div className="min-h-screen bg-background flex flex-col">
       <AppHeader />
       <main className="flex-1 px-4 py-4 pb-24 overflow-y-auto">
-        <h2 className="text-lg font-extrabold text-foreground mb-4">{sectionTitles[active]}</h2>
+        <h2 className="text-lg font-extrabold text-foreground mb-4">{t.sectionTitles[active]}</h2>
         {renderSection()}
       </main>
       <BottomNav active={active} onNavigate={setActive} />
