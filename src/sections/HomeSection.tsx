@@ -37,7 +37,7 @@ async function streamChat({ messages, onDelta, onDone, onError }: {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: "Request failed" }));
-    onError(err.error || "Something went wrong");
+    onError(err.error || "Sorry, please try again.");
     return;
   }
   if (!resp.body) { onError("No response body"); return; }
@@ -121,21 +121,19 @@ const HomeSection = () => {
     await saveMessage("user", text);
 
     let assistantText = "";
-    const upsert = (chunk: string) => {
-      assistantText += chunk;
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "assistant" && last === prev[prev.length - 1] && assistantText.startsWith(chunk.length > 0 ? "" : "")) {
-          return prev.map((m, i) => i === prev.length - 1 && m.role === "assistant" && i > 0 ? { ...m, content: assistantText } : m);
-        }
-        return [...prev, { role: "assistant", content: assistantText }];
-      });
-    };
-
     try {
       await streamChat({
         messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-        onDelta: (chunk) => upsert(chunk),
+        onDelta: (chunk) => {
+          assistantText += chunk;
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last?.role === "assistant" && prev.length > 1) {
+              return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantText } : m);
+            }
+            return [...prev, { role: "assistant", content: assistantText }];
+          });
+        },
         onDone: async () => {
           setIsLoading(false);
           if (assistantText) await saveMessage("assistant", assistantText);
