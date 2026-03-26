@@ -10,31 +10,30 @@ serve(async (req) => {
 
   try {
     const { imageBase64 } = await req.json();
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1000,
-        system: "You are an expert plant pathologist. Look at this crop photo and tell: 1) Disease name 2) Why it happened 3) Which medicine to buy 4) How to apply the medicine 5) How to prevent it next time. Be specific and practical for Indian farmers. Respond in JSON format with keys: disease_name, severity (low/medium/high/critical), cause, symptoms (array), medicines (array of {name, dosage}), precautions (array), organic_alternatives (array). If no disease is visible, set disease_name to 'Healthy / Not a crop image'.",
+        model: "google/gemini-2.5-flash",
         messages: [
+          {
+            role: "system",
+            content: `You are an expert plant pathologist. Look at this crop photo and tell: 1) Disease name 2) Why it happened 3) Which medicine to buy 4) How to apply the medicine 5) How to prevent it next time. Be specific and practical for Indian farmers.
+
+Respond in JSON format with keys: disease_name, severity (low/medium/high/critical), cause, symptoms (array), medicines (array of {name, dosage}), precautions (array), organic_alternatives (array). If no disease is visible, set disease_name to 'Healthy / Not a crop image'.`,
+          },
           {
             role: "user",
             content: [
               {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: "image/jpeg",
-                  data: imageBase64,
-                },
+                type: "image_url",
+                image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
               },
               {
                 type: "text",
@@ -48,7 +47,7 @@ serve(async (req) => {
 
     if (!response.ok) {
       const t = await response.text();
-      console.error("Anthropic error:", response.status, t);
+      console.error("AI gateway error:", response.status, t);
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -60,7 +59,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const content = data.content?.[0]?.text || "";
+    const content = data.choices?.[0]?.message?.content || "";
 
     let result;
     try {
