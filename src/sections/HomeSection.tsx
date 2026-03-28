@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import WeatherCard from "@/components/WeatherCard";
 
 interface Message {
   role: "user" | "assistant";
@@ -54,7 +55,6 @@ const HomeSection = () => {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Update welcome message when language changes
   useEffect(() => {
     setMessages(prev => {
       if (prev.length === 1 && prev[0].role === "assistant") {
@@ -64,7 +64,6 @@ const HomeSection = () => {
     });
   }, [lang, t.welcome]);
 
-  // Load chat history
   useEffect(() => {
     if (!user || historyLoaded) return;
     const load = async () => {
@@ -121,6 +120,7 @@ const HomeSection = () => {
 
   return (
     <div className="flex flex-col h-full">
+      <WeatherCard />
       <div className="flex justify-end mb-2">
         <button onClick={clearHistory} className="text-xs flex items-center gap-1 text-muted-foreground hover:text-destructive transition-colors">
           <Trash2 className="w-3 h-3" /> {t.clearHistory}

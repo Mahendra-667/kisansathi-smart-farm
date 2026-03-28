@@ -1,18 +1,27 @@
 import { useState, useRef, useEffect } from "react";
-import { Camera, AlertTriangle, Pill, Shield, Upload, Loader2, Leaf, RefreshCw, History } from "lucide-react";
+import { Camera, AlertTriangle, Pill, Shield, Upload, Loader2, Leaf, RefreshCw, History, MapPin, Phone, MessageCircle, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+interface MedicineInfo {
+  name: string;
+  dosage: string;
+  how_to_apply?: string;
+}
 
 interface DiagnosisResult {
   disease_name: string;
   severity: string;
   cause: string;
+  immediate_action?: string;
   symptoms: string[];
-  medicines: { name: string; dosage: string }[];
+  medicines: MedicineInfo[];
   precautions: string[];
   organic_alternatives: string[];
+  recovery_time?: string;
   raw?: string;
 }
 
@@ -30,12 +39,23 @@ const severityColor: Record<string, string> = {
 
 const DiseaseCheckSection = () => {
   const { user } = useAuth();
+  const { lang } = useLanguage();
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<SavedResult[]>([]);
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => setGpsCoords({ lat: 28.6139, lng: 77.209 })
+      );
+    }
+  }, []);
 
   const loadHistory = async () => {
     if (!user) return;
@@ -52,8 +72,9 @@ const DiseaseCheckSection = () => {
         disease_name: d.disease_name || "",
         severity: d.severity || "",
         cause: d.cause || "",
+        immediate_action: "",
         symptoms: (d.symptoms as string[]) || [],
-        medicines: (d.medicines as { name: string; dosage: string }[]) || [],
+        medicines: (d.medicines as MedicineInfo[]) || [],
         precautions: (d.precautions as string[]) || [],
         organic_alternatives: (d.organic_alternatives as string[]) || [],
         raw: d.raw_response || undefined,
@@ -88,7 +109,9 @@ const DiseaseCheckSection = () => {
       setLoading(true);
       const base64 = dataUrl.split(",")[1];
       try {
-        const { data, error } = await supabase.functions.invoke("disease-check", { body: { imageBase64: base64 } });
+        const { data, error } = await supabase.functions.invoke("disease-check", {
+          body: { imageBase64: base64, language: lang },
+        });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
         setResult(data);
@@ -104,50 +127,89 @@ const DiseaseCheckSection = () => {
 
   const reset = () => { setResult(null); setPreview(null); if (fileRef.current) fileRef.current.value = ""; };
 
-  const renderResult = (res: DiagnosisResult, showImage = true) => (
+  const openPesticideShop = () => {
+    const lat = gpsCoords?.lat || 28.6139;
+    const lng = gpsCoords?.lng || 77.209;
+    window.open(`https://www.google.com/maps/search/pesticide+shop/@${lat},${lng},13z`, "_blank");
+  };
+
+  const callHelpline = () => {
+    window.open("tel:18001801551", "_self");
+  };
+
+  const whatsappExpert = () => {
+    const msg = result ? `I found ${result.disease_name} on my crop. Severity: ${result.severity}. Can you help?` : "I need help with crop disease.";
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+  };
+
+  const renderResult = (res: DiagnosisResult, showImage = true, showActions = true) => (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
       {showImage && preview && <img src={preview} alt="Crop" className="w-full h-40 rounded-xl object-cover" />}
       {res.raw ? (
         <div className="card-farm"><p className="text-sm text-foreground whitespace-pre-wrap">{res.raw}</p></div>
       ) : (
         <>
+          {/* Disease Name & Severity */}
           <div className="card-farm border-l-4 border-l-destructive">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5 text-destructive" />
-              <h3 className="text-lg font-extrabold text-foreground">{res.disease_name}</h3>
+              <h3 className="text-lg font-extrabold text-destructive">{res.disease_name}</h3>
             </div>
             {res.severity && (
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${severityColor[res.severity] || "text-muted-foreground bg-muted"}`}>
                 {res.severity.toUpperCase()} SEVERITY
               </span>
             )}
-            <p className="text-sm text-muted-foreground leading-relaxed mt-2">{res.cause}</p>
-            {res.symptoms?.length > 0 && (
-              <ul className="mt-2 space-y-1">
+            <p className="text-sm text-muted-foreground leading-relaxed mt-2"><strong>Why it happened:</strong> {res.cause}</p>
+            {res.immediate_action && (
+              <div className="mt-2 bg-red-50 dark:bg-red-950 rounded-lg p-2.5">
+                <p className="text-sm font-bold text-destructive">⚡ Immediate Action: {res.immediate_action}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Symptoms */}
+          {res.symptoms?.length > 0 && (
+            <div className="card-farm">
+              <h4 className="font-bold text-foreground mb-2">🔍 Symptoms</h4>
+              <ul className="space-y-1">
                 {res.symptoms.map((s, i) => (
                   <li key={i} className="text-sm text-foreground flex items-start gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-destructive mt-1.5 flex-shrink-0" />{s}
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
-          {res.medicines?.length > 0 && (
-            <div className="card-farm">
-              <div className="flex items-center gap-2 mb-3"><Pill className="w-5 h-5 text-primary" /><h3 className="font-bold text-foreground">Recommended Medicine</h3></div>
-              <ul className="space-y-2 text-sm">
-                {res.medicines.map((m, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-                    <span className="text-foreground"><strong>{m.name}</strong> — {m.dosage}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
+
+          {/* Medicine */}
+          {res.medicines?.length > 0 && (
+            <div className="card-farm">
+              <div className="flex items-center gap-2 mb-3"><Pill className="w-5 h-5 text-primary" /><h3 className="font-bold text-foreground">💊 Medicine & Dosage</h3></div>
+              <div className="space-y-3">
+                {res.medicines.map((m, i) => (
+                  <div key={i} className="bg-secondary rounded-lg p-3">
+                    <p className="font-bold text-foreground text-sm">{m.name}</p>
+                    <p className="text-xs text-muted-foreground mt-1">📏 Dosage: {m.dosage}</p>
+                    {m.how_to_apply && <p className="text-xs text-muted-foreground mt-1">📋 How to apply: {m.how_to_apply}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recovery Time */}
+          {res.recovery_time && (
+            <div className="card-farm flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" />
+              <p className="text-sm font-semibold text-foreground">Recovery Time: {res.recovery_time}</p>
+            </div>
+          )}
+
+          {/* Organic Alternatives */}
           {res.organic_alternatives?.length > 0 && (
             <div className="card-farm">
-              <div className="flex items-center gap-2 mb-3"><Leaf className="w-5 h-5 text-primary" /><h3 className="font-bold text-foreground">Organic Alternatives</h3></div>
+              <div className="flex items-center gap-2 mb-3"><Leaf className="w-5 h-5 text-primary" /><h3 className="font-bold text-foreground">🌿 Organic Alternatives</h3></div>
               <ul className="space-y-2 text-sm">
                 {res.organic_alternatives.map((a, i) => (
                   <li key={i} className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" /><span className="text-foreground">{a}</span></li>
@@ -155,14 +217,31 @@ const DiseaseCheckSection = () => {
               </ul>
             </div>
           )}
+
+          {/* Prevention */}
           {res.precautions?.length > 0 && (
             <div className="card-farm">
-              <div className="flex items-center gap-2 mb-3"><Shield className="w-5 h-5 text-primary" /><h3 className="font-bold text-foreground">Precautions</h3></div>
+              <div className="flex items-center gap-2 mb-3"><Shield className="w-5 h-5 text-primary" /><h3 className="font-bold text-foreground">🛡️ Prevention Tips</h3></div>
               <ul className="space-y-2 text-sm">
                 {res.precautions.map((p, i) => (
                   <li key={i} className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" /><span className="text-foreground">{p}</span></li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          {showActions && (
+            <div className="space-y-2">
+              <button onClick={openPesticideShop} className="w-full btn-primary-farm flex items-center justify-center gap-2 text-sm">
+                <MapPin className="w-4 h-4" /> Find Pesticide Shop Nearby
+              </button>
+              <button onClick={callHelpline} className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-4 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-colors">
+                <Phone className="w-4 h-4" /> Call Kisan Helpline 1800-180-1551
+              </button>
+              <button onClick={whatsappExpert} className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-4 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors">
+                <MessageCircle className="w-4 h-4" /> WhatsApp Expert
+              </button>
             </div>
           )}
         </>
@@ -191,7 +270,7 @@ const DiseaseCheckSection = () => {
           ) : history.map((h) => (
             <div key={h.id} className="space-y-2">
               <p className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleDateString()}</p>
-              {renderResult(h, false)}
+              {renderResult(h, false, false)}
             </div>
           ))}
         </div>
