@@ -5,17 +5,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const PROMPT = `You are an expert plant pathologist. Look at this crop photo and tell: 1) Disease name 2) Why it happened 3) Which medicine to buy 4) How to apply the medicine 5) How to prevent it next time. Be specific and practical for Indian farmers.
+const PROMPT = `You are an expert plant pathologist specializing in Indian agriculture. Analyze this crop photo carefully.
 
-Respond ONLY with valid JSON (no markdown, no code fences) with keys: disease_name, severity (low/medium/high/critical), cause, symptoms (array), medicines (array of {name, dosage}), precautions (array), organic_alternatives (array). If no disease is visible, set disease_name to 'Healthy / Not a crop image'.`;
+Respond ONLY with valid JSON (no markdown, no code fences) with these exact keys:
+{
+  "disease_name": "exact disease name or 'Healthy Crop' if no disease",
+  "severity": "low" or "medium" or "high" or "critical",
+  "cause": "why this disease happened in simple farmer-friendly words",
+  "immediate_action": "what the farmer should do TODAY",
+  "symptoms": ["visible symptom 1", "symptom 2"],
+  "medicines": [{"name": "medicine name", "dosage": "exact dosage per acre/liter", "how_to_apply": "step by step application method"}],
+  "precautions": ["prevention tip 1", "tip 2"],
+  "organic_alternatives": ["organic remedy 1", "remedy 2"],
+  "recovery_time": "estimated days/weeks for crop recovery"
+}
+
+Be specific with medicine names available in Indian markets (like Mancozeb, Carbendazim, Neem oil etc) and exact dosages.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { imageBase64 } = await req.json();
+    const { imageBase64, language } = await req.json();
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+    const langMap: Record<string, string> = {
+      hi: "Hindi", kn: "Kannada", te: "Telugu", ta: "Tamil", ml: "Malayalam", en: "English"
+    };
+    const langName = langMap[language] || "English";
+    const langPrompt = language && language !== "en" ? ` Respond in ${langName}.` : "";
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -26,10 +45,10 @@ serve(async (req) => {
         contents: [{
           parts: [
             { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
-            { text: PROMPT },
+            { text: PROMPT + langPrompt },
           ],
         }],
-        generationConfig: { maxOutputTokens: 1000, temperature: 0.3 },
+        generationConfig: { maxOutputTokens: 1500, temperature: 0.3 },
       }),
     });
 
@@ -37,11 +56,11 @@ serve(async (req) => {
       const t = await response.text();
       console.error("Gemini API error:", response.status, t);
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded." }), {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please wait and try again." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: "AI service error" }), {
+      return new Response(JSON.stringify({ error: "AI service temporarily unavailable." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
