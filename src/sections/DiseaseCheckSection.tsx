@@ -86,17 +86,17 @@ const DiseaseCheckSection = () => {
 
   const saveResult = async (res: DiagnosisResult) => {
     if (!user) return;
-    await supabase.from("disease_results").insert({
+    await supabase.from("disease_results").insert([{
       user_id: user.id,
       disease_name: res.disease_name,
       severity: res.severity,
       cause: res.cause,
-      symptoms: res.symptoms,
-      medicines: res.medicines,
-      precautions: res.precautions,
-      organic_alternatives: res.organic_alternatives,
+      symptoms: res.symptoms as any,
+      medicines: res.medicines as any,
+      precautions: res.precautions as any,
+      organic_alternatives: res.organic_alternatives as any,
       raw_response: res.raw || null,
-    });
+    }]);
   };
 
   const handleFile = async (file: File) => {
