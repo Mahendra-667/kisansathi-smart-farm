@@ -5,26 +5,42 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function callClaude(body: any, apiKey: string): Promise<any> {
+  await new Promise(r => setTimeout(r, 1000));
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const t = await resp.text();
+    console.error("Claude error:", resp.status, t);
+    return null;
+  }
+  return resp.json();
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { lat, lon, language } = await req.json();
     const OPENWEATHER_KEY = Deno.env.get("OPENWEATHER_KEY");
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
-    if (!OPENWEATHER_KEY) throw new Error("OPENWEATHER_KEY not configured");
+    if (!OPENWEATHER_KEY) throw new Error("Weather service not configured");
 
-    // Fetch weather
     const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_KEY}&units=metric`;
     const weatherResp = await fetch(weatherUrl);
 
     if (!weatherResp.ok) {
       const t = await weatherResp.text();
       console.error("OpenWeather error:", weatherResp.status, t);
-      return new Response(JSON.stringify({ error: "Weather service unavailable" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      throw new Error("Weather service unavailable");
     }
 
     const weather = await weatherResp.json();
@@ -41,34 +57,27 @@ serve(async (req) => {
       clouds: weather.clouds?.all || 0,
     };
 
-    // Generate farming tip with Gemini if available
-    if (GEMINI_API_KEY) {
+    if (ANTHROPIC_API_KEY) {
       try {
         const langMap: Record<string, string> = {
           hi: "Hindi", kn: "Kannada", te: "Telugu", ta: "Tamil", ml: "Malayalam", en: "English"
         };
         const langName = langMap[language] || "English";
 
-        const tipPrompt = `Current weather: ${result.temp}°C, humidity ${result.humidity}%, wind ${result.wind_speed} m/s, ${result.description}, rain ${result.rain}mm, clouds ${result.clouds}%. Give ONE short practical farming tip for today based on this weather. Max 2 sentences. Respond in ${langName}. Examples: "Good day to spray pesticides - low wind and no rain expected" or "Delay irrigation - rain expected today".`;
+        const tipPrompt = `Current weather: ${result.temp}°C, humidity ${result.humidity}%, wind ${result.wind_speed} m/s, ${result.description}, rain ${result.rain}mm, clouds ${result.clouds}%. Give ONE specific practical farming advice for Indian farmers today based on this weather. Keep it under 2 sentences. Respond in ${langName}.`;
 
-        const geminiResp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: tipPrompt }] }],
-              generationConfig: { maxOutputTokens: 150, temperature: 0.5 },
-            }),
-          }
-        );
+        const data = await callClaude({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 150,
+          system: "You are a practical Indian farming weather advisor. Give short actionable tips.",
+          messages: [{ role: "user", content: tipPrompt }],
+        }, ANTHROPIC_API_KEY);
 
-        if (geminiResp.ok) {
-          const geminiData = await geminiResp.json();
-          result.farming_tip = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        if (data?.content?.[0]?.text) {
+          result.farming_tip = data.content[0].text;
         }
       } catch (e) {
-        console.error("Gemini tip error:", e);
+        console.error("Claude tip error:", e);
       }
     }
 
@@ -77,7 +86,7 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("weather error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    return new Response(JSON.stringify({ error: "Could not load weather. Please try again." }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
