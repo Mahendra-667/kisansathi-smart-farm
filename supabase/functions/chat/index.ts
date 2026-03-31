@@ -11,7 +11,10 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, language, profile } = await req.json();
+    const body = await req.json();
+    console.log("Received body keys:", Object.keys(body));
+    
+    const { messages, language, profile } = body;
 
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) {
@@ -19,76 +22,100 @@ serve(async (req) => {
       throw new Error("API key not configured");
     }
 
-    const userMessage = messages?.[messages.length - 1]?.content || "";
-
     const langMap: Record<string, string> = {
       hi: "Hindi", kn: "Kannada", te: "Telugu", ta: "Tamil", ml: "Malayalam", en: "English",
     };
     const langName = langMap[language] || "English";
 
     const profileInfo = profile
-      ? `Farmer Profile: Name: ${profile.name || "Farmer"}, Village: ${profile.village || "Unknown"}, District: ${profile.district || "Unknown"}, State: ${profile.state || "Unknown"}, Farm Size: ${profile.farmSize || "Unknown"} acres, Main Crops: ${profile.crops || "General"}, Farming Type: ${profile.farmingType || "Conventional"}.`
+      ? `Farmer Profile: Name: ${profile.name || "Farmer"}, Village: ${profile.village || "Unknown"}, District: ${profile.district || "Unknown"}, State: ${profile.state || "Unknown"}, Farm Size: ${profile.farmSize || "Unknown"} acres, Main Crops: ${profile.crops || "General"}.`
       : "";
 
-    const systemPrompt = `You are KisanAI, India's smartest AI farming assistant. You have deep knowledge of all Indian crops, soil types, pest control, irrigation methods, harvesting techniques, post-harvest storage, and government agricultural schemes including PM Kisan Samman Nidhi, Soil Health Card scheme, Pradhan Mantri Fasal Bima Yojana, Kisan Credit Card, eNAM, and Paramparagat Krishi Vikas Yojana. Always give practical, specific, actionable advice suited for Indian farming conditions and climate. Respond ONLY in ${langName}. ${profileInfo} Keep answers clear, simple, and practical. NEVER recommend banned pesticides: Endosulfan, Monocrotophos, Methyl Parathion, Carbofuran, Phorate, Triazophos, Dimethoate.`;
+    const systemPrompt = `You are KisanAI, India's smartest AI farming assistant. You have deep knowledge of all Indian crops, soil types, pest control, irrigation, harvesting, and government agricultural schemes. Always give practical, actionable advice for Indian farming. Respond ONLY in ${langName}. ${profileInfo}`;
 
-    const claudeMessages = (messages || []).slice(-10).map((m: any) => ({
-      role: m.role === "assistant" ? "assistant" : "user",
-      content: m.content,
-    }));
-
-    if (claudeMessages.length === 0 || claudeMessages[0].role === "assistant") {
-      claudeMessages.unshift({ role: "user", content: userMessage || "Hello" });
+    // Build clean messages array - ensure alternating user/assistant
+    const cleanMessages: Array<{role: string; content: string}> = [];
+    
+    if (messages && Array.isArray(messages)) {
+      for (const m of messages.slice(-10)) {
+        const role = m.role === "assistant" ? "assistant" : "user";
+        const content = typeof m.content === "string" ? m.content : String(m.content);
+        if (content.trim()) {
+          // Ensure we don't have consecutive same-role messages
+          if (cleanMessages.length > 0 && cleanMessages[cleanMessages.length - 1].role === role) {
+            cleanMessages[cleanMessages.length - 1].content += "\n" + content;
+          } else {
+            cleanMessages.push({ role, content });
+          }
+        }
+      }
     }
+
+    // Ensure first message is from user
+    if (cleanMessages.length === 0) {
+      cleanMessages.push({ role: "user", content: "Hello" });
+    } else if (cleanMessages[0].role !== "user") {
+      cleanMessages.unshift({ role: "user", content: "Hello" });
+    }
+
+    console.log("Sending to Claude:", cleanMessages.length, "messages, first role:", cleanMessages[0].role);
 
     // 1 second delay
     await new Promise((r) => setTimeout(r, 1000));
 
-    const makeRequest = async (retry = false): Promise<Response> => {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    const requestBody = {
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: cleanMessages,
+    };
+
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (resp.status === 429) {
+      console.warn("Rate limited, retrying in 3s...");
+      await new Promise((r) => setTimeout(r, 3000));
+      const retryResp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
           "content-type": "application/json",
         },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages: claudeMessages,
-        }),
+        body: JSON.stringify(requestBody),
       });
-
-      if (resp.status === 429 && !retry) {
-        console.warn("Rate limited, retrying in 3s...");
-        await new Promise((r) => setTimeout(r, 3000));
-        return makeRequest(true);
+      if (!retryResp.ok) {
+        const t = await retryResp.text();
+        console.error("Retry failed:", retryResp.status, t);
+        throw new Error("API retry failed");
       }
-
-      return resp;
-    };
-
-    const requestBody = {
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: claudeMessages,
-    };
-    console.log("Request body:", JSON.stringify(requestBody).substring(0, 500));
-    const response = await makeRequest();
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Claude API error:", response.status, errorText);
-      throw new Error(`Claude API error: ${response.status}`);
+      const data = await retryResp.json();
+      const aiResponse = data?.content?.[0]?.text || "Sorry, please try again.";
+      return new Response(JSON.stringify({ response: aiResponse }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const data = await response.json();
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.error("Claude API error:", resp.status, errorText);
+      throw new Error(`Claude API error: ${resp.status}`);
+    }
+
+    const data = await resp.json();
     const aiResponse = data?.content?.[0]?.text;
 
     if (!aiResponse) {
-      throw new Error("Empty response from Claude");
+      console.error("Empty response from Claude, full data:", JSON.stringify(data));
+      throw new Error("Empty response");
     }
 
     return new Response(JSON.stringify({ response: aiResponse }), {
