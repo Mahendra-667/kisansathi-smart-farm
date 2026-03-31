@@ -38,28 +38,13 @@ const STATIC_PRICES = [
   { commodity: "Cumin", market: "Unjha", state: "Gujarat", min_price: "30000", max_price: "35000", modal_price: "32500" },
 ];
 
-async function callClaude(body: any, apiKey: string): Promise<any> {
-  await new Promise(r => setTimeout(r, 1000));
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) return null;
-  return resp.json();
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { state, language } = await req.json();
     const DATA_GOV_KEY = Deno.env.get("DATA_GOV_KEY");
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    const API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     let records: any[] = [];
     let isLive = false;
@@ -76,9 +61,7 @@ serve(async (req) => {
             isLive = true;
           }
         }
-      } catch (e) {
-        console.error("data.gov.in error:", e);
-      }
+      } catch (e) { console.error("data.gov.in error:", e); }
     }
 
     if (!isLive) {
@@ -87,29 +70,29 @@ serve(async (req) => {
     }
 
     let aiInsight = "";
-    if (ANTHROPIC_API_KEY) {
+    if (API_KEY) {
       try {
-        const langMap: Record<string, string> = {
-          hi: "Hindi", kn: "Kannada", te: "Telugu", ta: "Tamil", ml: "Malayalam", en: "English"
-        };
+        const langMap: Record<string, string> = { hi: "Hindi", kn: "Kannada", te: "Telugu", ta: "Tamil", ml: "Malayalam", en: "English" };
         const langName = langMap[language] || "English";
         const top5 = records.slice(0, 5).map((r: any) => `${r.commodity}: ₹${r.modal_price}`).join(", ");
 
-        const prompt = `Based on current Indian mandi prices (${top5}), give market intelligence for farmers: 1) Best 3 crops to sell this week with reasons, 2) Price prediction next 7 days, 3) Best APMC market to visit, 4) Crops to avoid selling this week. Respond in ${langName}. Keep it concise.`;
-
-        const data = await callClaude({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 300,
-          system: "You are an Indian agricultural market analyst. Give practical market advice to farmers.",
-          messages: [{ role: "user", content: prompt }],
-        }, ANTHROPIC_API_KEY);
-
-        if (data?.content?.[0]?.text) {
-          aiInsight = data.content[0].text;
+        await new Promise(r => setTimeout(r, 1000));
+        const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              { role: "system", content: "You are an Indian agricultural market analyst. Give practical market advice." },
+              { role: "user", content: `Based on current Indian mandi prices (${top5}), give market intelligence: 1) Best 3 crops to sell this week, 2) Price prediction next 7 days, 3) Best APMC market, 4) Crops to avoid selling. Respond in ${langName}. Keep concise.` },
+            ],
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          aiInsight = data?.choices?.[0]?.message?.content || "";
         }
-      } catch (e) {
-        console.error("Claude insight error:", e);
-      }
+      } catch (e) { console.error("AI insight error:", e); }
     }
 
     return new Response(JSON.stringify({ records, isLive, aiInsight }), {
