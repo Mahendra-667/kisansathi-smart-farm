@@ -69,6 +69,13 @@ serve(async (req) => {
       return resp;
     };
 
+    const requestBody = {
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: claudeMessages,
+    };
+    console.log("Request body:", JSON.stringify(requestBody).substring(0, 500));
     const response = await makeRequest();
 
     if (!response.ok) {
