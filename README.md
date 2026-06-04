@@ -11,16 +11,6 @@
 
 ---
 
-## 🏆 Hackathon Details
-- **Event:** ET AI Hackathon 2026
-- **Partner:** Unstop
-- **Problem Statement:** PS5 — Domain Specialized AI Agents 
-  with Compliance Guardrails
-- **Domain:** Agriculture
-- **Team:** Mahendra
-
----
-
 ## 🚨 Problem We Are Solving
 
 India has **140 million farmers** who struggle daily with:
