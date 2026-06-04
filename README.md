@@ -307,7 +307,6 @@ price_alerts — id, crop_name, target_price,
 ## 👨‍💻 Built By
 
 **Mahendra**
-ET AI Hackathon 2026 — Problem Statement 5
 
 ---
 
