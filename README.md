@@ -2,8 +2,6 @@
 ### AI Powered Complete Farming Super App for Indian Farmers
 
 ![KisanAI](https://img.shields.io/badge/KisanAI-Farming%20Assistant-green)
-![Hackathon](https://img.shields.io/badge/ET%20AI%20Hackathon-2026-orange)
-![Problem Statement](https://img.shields.io/badge/Problem%20Statement-5-blue)
 ![Languages](https://img.shields.io/badge/Languages-6%20Indian%20Languages-yellow)
 
 ---
